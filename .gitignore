@@ -1,0 +1,18 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Data lives in the Hugging Face repo, not here (see fetch_data.py)
+hf-data/
+RFC-4-Sample-Data/
+
+# Generated conformance fixtures (recreate with conformance/generate_stress_cases.py)
+conformance/cases/
+
+# Reports
+report.json
+*.report.json
+
+.DS_Store

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ngff.openmicroscopy.org/rfc/4/orientation.schema.json",
+  "title": "OME-NGFF RFC-4 anatomical orientation",
+  "description": "The value of an axis 'orientation' field (RFC-4). Only valid on type:space axes.",
+  "type": "object",
+  "required": [
+    "type",
+    "value"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "const": "anatomical"
+    },
+    "value": {
+      "enum": [
+        "anterior-to-posterior",
+        "apex-to-base",
+        "apical-to-basal",
+        "basal-to-apical",
+        "base-to-apex",
+        "caudal-to-cranial",
+        "caudal-to-rostral",
+        "cranial-to-caudal",
+        "deep-to-superficial",
+        "distal-to-proximal",
+        "dorsal-to-palmar",
+        "dorsal-to-plantar",
+        "dorsal-to-ventral",
+        "inferior-to-superior",
+        "left-to-right",
+        "palmar-to-dorsal",
+        "plantar-to-dorsal",
+        "posterior-to-anterior",
+        "proximal-to-distal",
+        "right-to-left",
+        "rostral-to-caudal",
+        "superficial-to-deep",
+        "superior-to-inferior",
+        "ventral-to-dorsal"
+      ]
+    }
+  }
+}

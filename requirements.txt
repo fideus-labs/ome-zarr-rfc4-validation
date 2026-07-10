@@ -1,0 +1,9 @@
+# RFC-4 validator + conformance suite dependencies.
+# The OME-Zarr validation path is stdlib-only; the packages below enable the
+# optional NIfTI/DICOM/NRRD analysis and the conformance tooling.
+nibabel>=5.0
+pydicom>=3.0
+pynrrd>=1.0
+numpy>=1.24
+pyyaml>=6.0
+jsonschema>=4.0
