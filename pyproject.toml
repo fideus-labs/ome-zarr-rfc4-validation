@@ -1,0 +1,22 @@
+[project]
+name = "ome-zarr-rfc4-validation"
+version = "0.1.0"
+description = "Reference validator and conformance suite for OME-Zarr RFC-4 (axis anatomical orientation)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+# The OME-Zarr validation path is stdlib-only. These enable the optional
+# NIfTI/DICOM/NRRD analysis and the conformance tooling.
+dependencies = [
+    "nibabel>=5.0",
+    "pydicom>=3.0",
+    "pynrrd>=1.0",
+    "numpy>=1.24",
+    "pyyaml>=6.0",
+    "jsonschema>=4.0",
+]
+
+# This repo is a collection of scripts (validate_rfc4.py, conformance/…), not an
+# installable package: uv manages the environment without building it.
+[tool.uv]
+package = false

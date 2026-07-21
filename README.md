@@ -37,14 +37,18 @@ conformance/
 
 ## Quickstart
 
+Uses [uv](https://docs.astral.sh/uv/):
+
 ```bash
-python -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python fetch_data.py                                  # get data from HF
-.venv/bin/python conformance/generate_stress_cases.py           # (optional) regenerate the SC-* fixtures (already shipped)
-.venv/bin/python validate_rfc4.py --data-dir hf-data
-.venv/bin/python test_validate_rfc4.py --data-dir hf-data
-.venv/bin/python conformance/run_conformance.py --data-dir hf-data   # drive a tool's CLI vs the manifest
+uv sync                                                      # env from pyproject.toml + uv.lock
+uv run python fetch_data.py                                  # get data from HF
+uv run python conformance/generate_stress_cases.py           # (optional) regenerate the SC-* fixtures (already shipped)
+uv run python validate_rfc4.py --data-dir hf-data
+uv run python test_validate_rfc4.py --data-dir hf-data
+uv run python conformance/run_conformance.py --data-dir hf-data   # drive a tool's CLI vs the manifest
 ```
+
+(Prefer pip? `python -m venv .venv && .venv/bin/pip install -r requirements.txt` still works.)
 
 `validate_rfc4.py` exits 0 when every case meets its expectation. The proof suite
 additionally injects broken metadata and asserts it is **rejected with the right
