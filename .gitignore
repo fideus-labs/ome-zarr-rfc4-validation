@@ -8,9 +8,6 @@ __pycache__/
 hf-data/
 RFC-4-Sample-Data/
 
-# Generated conformance fixtures (recreate with conformance/generate_stress_cases.py)
-conformance/cases/
-
 # Reports
 report.json
 *.report.json

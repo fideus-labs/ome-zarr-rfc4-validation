@@ -1,0 +1,60 @@
+{
+  "attributes": {
+    "ome": {
+      "version": "0.5",
+      "multiscales": [
+        {
+          "axes": [
+            {
+              "name": "z",
+              "type": "space",
+              "orientation": null
+            },
+            {
+              "name": "y",
+              "type": "space",
+              "orientation": {
+                "type": "anatomical",
+                "value": "anterior-to-posterior"
+              }
+            },
+            {
+              "name": "x",
+              "type": "space",
+              "orientation": {
+                "type": "anatomical",
+                "value": "right-to-left"
+              }
+            }
+          ],
+          "datasets": [
+            {
+              "path": "scale0/image",
+              "coordinateTransformations": [
+                {
+                  "type": "scale",
+                  "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                  ]
+                },
+                {
+                  "type": "translation",
+                  "translation": [
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              ]
+            }
+          ],
+          "name": "image"
+        }
+      ]
+    }
+  },
+  "zarr_format": 3,
+  "node_type": "group"
+}

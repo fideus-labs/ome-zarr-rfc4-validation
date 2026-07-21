@@ -122,6 +122,8 @@ class DatasetResult:
     kind: str  # "ome-zarr" | "nifti" | "dicom"
     issues: list[Issue] = field(default_factory=list)
     axes_summary: list[str] = field(default_factory=list)
+    # Structured axis -> orientation value (for the canonical conformance output).
+    axis_values: dict[str, str | None] = field(default_factory=dict)
     # Expectation bookkeeping (filled by the test runner layer).
     expect_valid: bool | None = None
     expectation_met: bool | None = None
@@ -270,6 +272,8 @@ def validate_axes(axes: list[dict], result: DatasetResult) -> None:
             else:
                 seen_pairs[pair] = name
 
+        if value is not None:
+            result.axis_values[name] = value
         label = f"{name} ({atype})"
         if has_orient:
             label += f": {value if value is not None else orient}"
@@ -323,6 +327,7 @@ def analyze_nifti(path: str, name: str) -> DatasetResult:
     rfc4 = [AXCODE_TO_RFC4.get(c, "?") for c in axcodes]
     result.notes.append(f"affine axcodes={''.join(axcodes)}")
     for axis_label, code, val in zip(("i", "j", "k"), axcodes, rfc4):
+        result.axis_values[axis_label] = val
         result.axes_summary.append(f"{axis_label} [{code}]: {val}")
 
     # RFC-4 precondition: subject "roughly aligned to imaging axes". Flag oblique.
@@ -407,6 +412,8 @@ def analyze_dicom(path: str, name: str) -> DatasetResult:
     result.notes.append(f"IOP={iop}")
     for axis_label, vec in (("x", fast), ("y", slow), ("z", normal)):
         rfc4, deg = _lps_to_rfc4(vec)
+        if rfc4 is not None:
+            result.axis_values[axis_label] = rfc4
         label = f"{axis_label}: {rfc4}"
         if rfc4 is not None and deg > OBLIQUE_DEG:
             label += f" (oblique, {deg:.0f}deg)"
@@ -467,6 +474,8 @@ def analyze_nrrd(path: str, name: str) -> DatasetResult:
             continue
         lps = row @ world_to_lps            # direction in LPS world coords
         rfc4, deg = _lps_to_rfc4(lps)
+        if rfc4 is not None:
+            result.axis_values[str(i)] = rfc4
         label = f"{i}: {rfc4}"
         if rfc4 is not None and deg > OBLIQUE_DEG:
             label += f" (oblique, {deg:.0f}deg)"
@@ -820,12 +829,72 @@ def to_json(results: list[DatasetResult]) -> dict:
     }
 
 
+def to_canonical(result: DatasetResult) -> dict:
+    """The canonical per-input conformance output (see conformance/manifest.yaml).
+
+    A conformant RFC-4 tool, given one input path, emits exactly this shape. This
+    is what the conformance driver (conformance/run_conformance.py) diffs against
+    the manifest's authored ground truth.
+    """
+    return {
+        "input": result.path,
+        "format": result.kind,
+        # rfc4_valid is meaningful only for OME-Zarr schema cases; derived formats
+        # (DICOM / NIfTI / NRRD) carry no schema to validate, so they report null.
+        "rfc4_valid": (result.is_rfc4_valid if result.kind == "ome-zarr" else None),
+        "axes": result.axis_values,
+        "violations": [i.code for i in result.issues if i.severity == SEV_ERROR],
+        "warnings": [i.code for i in result.issues if i.severity == SEV_WARN],
+    }
+
+
+_FORMAT_BY_EXT = {".dcm": "dicom", ".nrrd": "nrrd", ".nhdr": "nrrd", ".nii": "nifti"}
+
+
+def detect_format(path: str) -> str:
+    """Guess the input format from its path (extension / zarr layout)."""
+    low = path.rstrip("/").lower()
+    if low.endswith(".nii.gz") or low.endswith(".nii"):
+        return "nifti"
+    _, ext = os.path.splitext(low)
+    if ext in _FORMAT_BY_EXT:
+        return _FORMAT_BY_EXT[ext]
+    return "ome-zarr"  # .zarr / .ome.zarr / .zip / a plain directory
+
+
+def analyze_input(path: str, fmt: str | None = None) -> DatasetResult:
+    """Run the right analyzer for one input and return its DatasetResult."""
+    fmt = fmt or detect_format(path)
+    name = os.path.basename(path.rstrip("/"))
+    if fmt == "ome-zarr":
+        return validate_ome_zarr(path, name)
+    if fmt == "nifti":
+        return analyze_nifti(path, name)
+    if fmt == "dicom":
+        return analyze_dicom(path, name)
+    if fmt == "nrrd":
+        return analyze_nrrd(path, name)
+    r = DatasetResult(name=name, path=path, kind=fmt)
+    r.add(SEV_ERROR, "unknown-format", f"cannot analyze format {fmt!r}")
+    return r
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate OME-NGFF RFC-4 orientation metadata.")
+    parser = argparse.ArgumentParser(description="Validate OME-Zarr RFC-4 orientation metadata.")
     parser.add_argument("--data-dir", default="RFC-4-Sample-Data",
                         help="path to the RFC-4-Sample-Data directory (default: %(default)s)")
     parser.add_argument("--json", metavar="FILE", help="also write a JSON report to FILE")
+    parser.add_argument("--emit-canonical", metavar="INPUT",
+                        help="analyze ONE dataset and print its canonical conformance JSON, then exit "
+                             "(this is the CLI the conformance driver calls)")
+    parser.add_argument("--format", choices=["ome-zarr", "nifti", "dicom", "nrrd"],
+                        help="override format detection for --emit-canonical")
     args = parser.parse_args(argv)
+
+    if args.emit_canonical:
+        result = analyze_input(args.emit_canonical, args.format)
+        print(json.dumps(to_canonical(result), indent=2))
+        return 0
 
     if not os.path.isdir(args.data_dir):
         # Not fatal: the sample data may live elsewhere (Hugging Face). Cases

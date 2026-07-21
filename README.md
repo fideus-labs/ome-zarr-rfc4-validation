@@ -27,9 +27,11 @@ test_validate_rfc4.py    proof suite: positive + adversarial + manifest parity
 fetch_data.py            clone the sample data from Hugging Face
 conformance/
   manifest.yaml          the tool-agnostic suite: every case + the RFC-4 rule it tests + expected output
+  run_conformance.py     drives ANY tool's CLI against the manifest, diffs its canonical output
   orientation.schema.json JSON Schema for the orientation object (24-term enum)
   build_manifest.py      regenerates manifest.yaml + the schema, prints the coverage matrix
   generate_stress_cases.py  generates the SC-* boundary cases (conformance/cases/)
+  NGFF_ZARR_CONFORMANCE.md  how to make ngff-zarr a verified validator (the `conformance` subcommand)
   README.md              the conformance model, canonical output contract, coverage table
 ```
 
@@ -38,9 +40,10 @@ conformance/
 ```bash
 python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python fetch_data.py                                  # get data from HF
-.venv/bin/python conformance/generate_stress_cases.py           # regenerate SC-* fixtures
+.venv/bin/python conformance/generate_stress_cases.py           # (optional) regenerate the SC-* fixtures (already shipped)
 .venv/bin/python validate_rfc4.py --data-dir hf-data
 .venv/bin/python test_validate_rfc4.py --data-dir hf-data
+.venv/bin/python conformance/run_conformance.py --data-dir hf-data   # drive a tool's CLI vs the manifest
 ```
 
 `validate_rfc4.py` exits 0 when every case meets its expectation. The proof suite
@@ -61,7 +64,11 @@ matrix (every rule R1–R10 exercised, no redundant case).
 
 ## Status
 
-Reference validator passes 22/22 cases; proof suite 99/99 checks.
-Roadmap: a `run_conformance.py` driver that shells out to any tool's CLI
-(starting with an `ngff-zarr --validate-rfc4` mode) and diffs its canonical
-output against the manifest.
+Reference validator: **26/26** cases. Proof suite: **141** checks. Conformance
+driver (`conformance/run_conformance.py`): drives any tool's CLI against the
+manifest and diffs its canonical output — the reference validator passes 26/26
+through it (`--emit-canonical` is the CLI it calls).
+
+Next: land the `ngff-zarr conformance` subcommand (see
+[conformance/NGFF_ZARR_CONFORMANCE.md](conformance/NGFF_ZARR_CONFORMANCE.md)) so
+ngff-zarr becomes a verified validator passing this suite.

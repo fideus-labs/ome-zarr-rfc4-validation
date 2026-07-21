@@ -1,0 +1,63 @@
+{
+  "attributes": {
+    "ome": {
+      "version": "0.5",
+      "multiscales": [
+        {
+          "axes": [
+            {
+              "name": "z",
+              "type": "space",
+              "orientation": {
+                "type": "anatomical",
+                "value": "dorsal-to-ventral"
+              }
+            },
+            {
+              "name": "y",
+              "type": "space",
+              "orientation": {
+                "type": "anatomical",
+                "value": "rostral-to-caudal"
+              }
+            },
+            {
+              "name": "x",
+              "type": "space",
+              "orientation": {
+                "type": "anatomical",
+                "value": "left-to-right"
+              }
+            }
+          ],
+          "datasets": [
+            {
+              "path": "scale0/image",
+              "coordinateTransformations": [
+                {
+                  "type": "scale",
+                  "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                  ]
+                },
+                {
+                  "type": "translation",
+                  "translation": [
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              ]
+            }
+          ],
+          "name": "image"
+        }
+      ]
+    }
+  },
+  "zarr_format": 3,
+  "node_type": "group"
+}
