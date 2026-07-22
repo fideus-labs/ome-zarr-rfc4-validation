@@ -101,13 +101,24 @@ def main(argv: list[str] | None = None) -> int:
                     help="path to the sample data (default: %(default)s, as written by fetch_data.py)")
     ap.add_argument("--tool", default=DEFAULT_TOOL,
                     help="CLI template emitting the canonical JSON; '{input}' is the dataset path")
+    ap.add_argument("--format", action="append", metavar="FMT", dest="formats",
+                    help="only run cases of this format (repeatable). Use it to scope the "
+                         "suite to what a tool actually reads, e.g. --format ome-zarr for "
+                         "an OME-Zarr-only implementation such as ngff-zarr")
     ap.add_argument("--manifest", default=MANIFEST)
     ap.add_argument("--json", metavar="FILE", help="also write a JSON report")
     args = ap.parse_args(argv)
 
     manifest = yaml.safe_load(open(args.manifest))
     cases = manifest["cases"]
-    print(f"conformance driver — {len(cases)} cases")
+    total_cases = len(cases)
+    if args.formats:
+        wanted = set(args.formats)
+        cases = [case for case in cases if case.get("format") in wanted]
+    print(f"conformance driver — {len(cases)} cases", end="")
+    if args.formats:
+        print(f" (of {total_cases}; format: {', '.join(sorted(set(args.formats)))})", end="")
+    print()
     print(f"tool: {args.tool}\n" + "=" * 72)
 
     results, passed, failed, skipped = [], 0, 0, 0
