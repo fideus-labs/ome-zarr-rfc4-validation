@@ -59,18 +59,19 @@ error code**, and checks the validator's output against `conformance/manifest.ya
 - **OME-Zarr** (normative, stdlib): orientation only on `space` axes; `{type, value}`
   present; `type == "anatomical"`; `value` in the 24-term vocabulary; one direction
   per anatomical axis; `null` flagged (SHOULD omit).
-- **NIfTI / DICOM / NRRD** (optional): derives orientation from the affine /
-  `ImageOrientationPatient` / NRRD `space directions`, and warns when axes are
-  oblique (the RFC-4 "roughly aligned" precondition).
+- **NIfTI / MINC / Analyze / DICOM / NRRD** (optional): derives orientation from
+  the affine (NIfTI/MINC/Analyze, via nibabel) / `ImageOrientationPatient` (DICOM) /
+  NRRD `space directions`, and warns when axes are oblique (the RFC-4 "roughly
+  aligned" precondition).
 
 See [conformance/README.md](conformance/README.md) for the requirement-coverage
 matrix (every rule R1–R10 exercised, no redundant case).
 
 ## Status
 
-Reference validator: **26/26** cases. Proof suite: **141** checks. Conformance
+Reference validator: **39/39** cases. Proof suite: **194** checks. Conformance
 driver (`conformance/run_conformance.py`): drives any tool's CLI against the
-manifest and diffs its canonical output — the reference validator passes 26/26
+manifest and diffs its canonical output — the reference validator passes 39/39
 through it (`--emit-canonical` is the CLI it calls).
 
 Next: land the `ngff-zarr conformance` subcommand (see

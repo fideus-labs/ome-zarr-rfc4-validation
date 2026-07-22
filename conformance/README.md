@@ -22,15 +22,15 @@ Every case is tied to a normative requirement, so the suite is **justified** and
 | Req | Level | What it checks | Cases |
 |-----|-------|----------------|-------|
 | R1 | MUST | orientation only on `space` axes | TC-D (time), SC-03 (channel) |
-| R2 | MUST | `{type, value}` both present | TC-16 (+), SC-05 (−) |
-| R3 | MUST | `type == "anatomical"` | TC-16 (+), SC-06 (−) |
-| R4 | MUST | `value` in the 24-term vocabulary | TC-16 (+), TC-C (−) |
+| R2 | MUST | `{type, value}` both present | SC-05 (−) |
+| R3 | MUST | `type == "anatomical"` | SC-06 (−) |
+| R4 | MUST | `value` in the 24-term vocabulary | TC-C (−) |
 | R5 | MUST | one direction per anatomical axis | SC-07 |
 | R6 | SHOULD | `null` == absent (warn, don't error) | SC-02 |
-| R7 | DEF | value = lowest→highest direction (flip) | TC-16/17, TC-08/09, TC-06 |
-| R8 | SHOULD | roughly aligned (oblique → warn) | SC-04 (30° NIfTI), TC-13 (rotated NRRD) |
-| R9 | COVER | full vocab incl. PR#528 + quadruped | TC-18/19/20, SC-01 |
-| R10 | DERIVE | correct derivation from DICOM/NIfTI/NRRD | TC-05/06, TC-11, TC-08/09, TC-13/14/15 |
+| R7 | DEF | value = lowest→highest direction (flip) | TC-06, TC-08/09, TC-50, real flips (TC-39–47, VC-2) |
+| R8 | SHOULD | roughly aligned (oblique → warn) | SC-04 (30° NIfTI), TC-13 (rotated NRRD), TC-10 (oblique DTI), TC-48 (oblique CT) |
+| R9 | COVER | full vocab incl. PR#528 + quadruped | TC-49/50, TC-21/22/24/25, TC-44/46, flips (TC-39–47), VC-1/2, SC-01 |
+| R10 | DERIVE | correct derivation from DICOM/NIfTI/NRRD/MINC/Analyze | TC-05/06, TC-37/48, TC-11, TC-08/09, TC-23, TC-10, TC-13, TC-26/27/28 (MINC), TC-30 (Analyze) |
 
 Run `python conformance/build_manifest.py` to print the live coverage matrix —
 it asserts **every requirement is covered** and **no case is orphaned**.
@@ -56,7 +56,7 @@ A conformant tool, given one input, emits (per `manifest.yaml`):
 
 ```json
 {
-  "input": "…/TC-16_synthetic_LPS.ome.zarr",
+  "input": "…/ome-zarr/real/brain_icbm_ras.ome.zarr",
   "format": "ome-zarr",
   "rfc4_valid": true,
   "axes": [{"name": "z", "type": "space", "orientation": "inferior-to-superior"}, …],
@@ -72,7 +72,7 @@ compares against `manifest.yaml`'s `expected` (e.g. `orientation-on-non-space`,
 ## Reference implementation
 
 [`../validate_rfc4.py`](../validate_rfc4.py) is the reference validator/adapter and
-passes every case (`python validate_rfc4.py` → 21/21). The next step is a
+passes every case (`python validate_rfc4.py --data-dir <ome-zarr-rfc4-data>` → 35/35). The next step is a
 `run_conformance.py` driver that shells out to *any* tool's CLI (starting with a
 `ngff-zarr --validate-rfc4` mode) and diffs its canonical output against the
 manifest — so an implementation can prove it passes its own conformance suite.

@@ -198,6 +198,10 @@ def _run_case(case: dict, repo_root: str, data_dir: str):
         return V.analyze_dicom(path, case["id"])
     if fmt == "nrrd":
         return V.analyze_nrrd(path, case["id"])
+    if fmt == "minc":
+        return V.analyze_minc(path, case["id"])
+    if fmt == "analyze":
+        return V.analyze_analyze(path, case["id"])
     return None
 
 

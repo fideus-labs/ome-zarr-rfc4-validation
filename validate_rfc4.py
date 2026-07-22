@@ -306,8 +306,39 @@ def validate_ome_zarr(path: str, name: str) -> DatasetResult:
 
 
 # --------------------------------------------------------------------------- #
-# Optional NIfTI analysis (nibabel)
+# Optional nibabel-backed analysis (NIfTI, MINC, Analyze)
 # --------------------------------------------------------------------------- #
+
+def _derive_orientation_from_affine(affine: Any, result: DatasetResult) -> None:
+    """Derive i/j/k RFC-4 terms + an oblique warning from a nibabel-style affine.
+
+    Shared by every nibabel-backed analyzer (NIfTI, MINC, Analyze). An axis code
+    names the anatomical direction the voxel index increases toward (mapped to the
+    RFC-4 term via AXCODE_TO_RFC4); an axis more than OBLIQUE_DEG off its nearest
+    anatomical axis trips the 'roughly aligned' precondition warning.
+    """
+    import numpy as np
+    import nibabel as nib
+
+    axcodes = nib.orientations.aff2axcodes(affine)
+    result.notes.append(f"affine axcodes={''.join(axcodes)}")
+    for axis_label, code in zip(("i", "j", "k"), axcodes):
+        val = AXCODE_TO_RFC4.get(code, "?")
+        result.axis_values[axis_label] = val
+        result.axes_summary.append(f"{axis_label} [{code}]: {val}")
+
+    cosines = np.asarray(affine)[:3, :3]
+    norms = np.linalg.norm(cosines, axis=0)
+    for axis_label, i in zip(("i", "j", "k"), range(3)):
+        if norms[i] == 0:
+            continue
+        dominant = float(np.max(np.abs(cosines[:, i])) / norms[i])
+        deg = float(np.degrees(np.arccos(min(1.0, dominant))))
+        if deg > OBLIQUE_DEG:
+            result.add(SEV_WARN, "not-roughly-aligned",
+                       f"axis {axis_label} is {deg:.0f}deg off the nearest anatomical axis; "
+                       f"the RFC-4 'roughly aligned' precondition may not hold")
+
 
 def analyze_nifti(path: str, name: str) -> DatasetResult:
     result = DatasetResult(name=name, path=path, kind="nifti")
@@ -323,26 +354,7 @@ def analyze_nifti(path: str, name: str) -> DatasetResult:
     sform_code = int(hdr["sform_code"])
     result.notes.append(f"qform_code={qform_code}, sform_code={sform_code}")
 
-    axcodes = nib.orientations.aff2axcodes(img.affine)
-    rfc4 = [AXCODE_TO_RFC4.get(c, "?") for c in axcodes]
-    result.notes.append(f"affine axcodes={''.join(axcodes)}")
-    for axis_label, code, val in zip(("i", "j", "k"), axcodes, rfc4):
-        result.axis_values[axis_label] = val
-        result.axes_summary.append(f"{axis_label} [{code}]: {val}")
-
-    # RFC-4 precondition: subject "roughly aligned to imaging axes". Flag oblique.
-    import numpy as np
-    cosines = img.affine[:3, :3]
-    norms = np.linalg.norm(cosines, axis=0)
-    for axis_label, i in zip(("i", "j", "k"), range(3)):
-        if norms[i] == 0:
-            continue
-        dominant = float(np.max(np.abs(cosines[:, i])) / norms[i])
-        deg = float(np.degrees(np.arccos(min(1.0, dominant))))
-        if deg > OBLIQUE_DEG:
-            result.add(SEV_WARN, "not-roughly-aligned",
-                       f"axis {axis_label} is {deg:.0f}deg off the nearest anatomical axis; "
-                       f"the RFC-4 'roughly aligned' precondition may not hold")
+    _derive_orientation_from_affine(img.affine, result)
 
     # Report qform/sform disagreement (the TC-11 ambiguity case).
     if qform_code > 0 and sform_code > 0:
@@ -356,6 +368,33 @@ def analyze_nifti(path: str, name: str) -> DatasetResult:
             result.add(SEV_WARN, "qform-sform-matrix-mismatch",
                        "qform and sform matrices differ; a converter MUST document which it uses "
                        "(NIfTI spec: sform takes precedence when sform_code > 0)")
+    return result
+
+
+def analyze_minc(path: str, name: str) -> DatasetResult:
+    """MINC (.mnc): nibabel reads MINC1/MINC2 like any spatial image; derive i/j/k."""
+    result = DatasetResult(name=name, path=path, kind="minc")
+    try:
+        import nibabel as nib
+    except ImportError:
+        result.add(SEV_INFO, "nibabel-missing", "install nibabel to analyze MINC orientation")
+        return result
+    _derive_orientation_from_affine(nib.load(path).affine, result)
+    return result
+
+
+def analyze_analyze(path: str, name: str) -> DatasetResult:
+    """Analyze 7.5 (.hdr/.img): no formal orientation field; nibabel derives an
+    affine from the pixdim signs (SPM/FSL convention). We report what it derives —
+    the orientation is genuinely ambiguous, which is the point of the TC-30 case."""
+    result = DatasetResult(name=name, path=path, kind="analyze")
+    try:
+        import nibabel as nib
+    except ImportError:
+        result.add(SEV_INFO, "nibabel-missing", "install nibabel to analyze Analyze orientation")
+        return result
+    result.notes.append("Analyze 7.5 has no formal orientation; derived from pixdim signs (ambiguous)")
+    _derive_orientation_from_affine(nib.load(path).affine, result)
     return result
 
 
@@ -501,55 +540,35 @@ class Expectation:
 
 
 EXPECTATIONS: tuple[Expectation, ...] = (
+    # Real ICBM152 brain -> OME-Zarr with orientation WRITTEN: the OME-Zarr
+    # carrier of the standard A/P + I/S terms. Replaces the retired synthetic
+    # TC-16/17 (LPS/RAS baselines); the subject-local TC-18/19/20 are now the
+    # real datasets TC-24 skin / TC-44 airway / TC-25 heart.
     Expectation(
-        "TC-16 synthetic LPS", "ome-zarr",
-        ("synthetic/ome-zarr/TC-16_synthetic_LPS.ome.zarr", "ome-zarr/TC-16_synthetic_LPS.zip"),
-        expect_valid=True,
-        expected_orientations={"z": "inferior-to-superior", "y": "anterior-to-posterior",
-                               "x": "right-to-left"},
-        description="Valid LPS baseline (3 anatomical terms)",
-    ),
-    Expectation(
-        "TC-17 synthetic RAS", "ome-zarr",
-        ("synthetic/ome-zarr/TC-17_synthetic_RAS.ome.zarr", "ome-zarr/TC-17_synthetic_RAS.zip"),
+        "TC-49 real brain RAS (A/P + I/S)", "ome-zarr",
+        ("ome-zarr/brain_icbm_ras.ome.zarr",),
         expect_valid=True,
         expected_orientations={"z": "inferior-to-superior", "y": "posterior-to-anterior",
                                "x": "left-to-right"},
-        description="Valid RAS baseline; x flips vs TC-16",
+        description="Real ICBM152 brain; standard A/P + I/S terms written into OME-Zarr",
     ),
     Expectation(
-        "TC-18 skin superficial-to-deep", "ome-zarr",
-        ("synthetic/ome-zarr/TC-18_skin_superficial_deep.ome.zarr",
-         "ome-zarr/TC-18_skin_superficial_deep.zip"),
+        "TC-50 real brain flipped (A/P + S/I)", "ome-zarr",
+        ("ome-zarr/brain_icbm_ras_flip.ome.zarr",),
         expect_valid=True,
-        expected_orientations={"z": "superficial-to-deep"},
-        description="PR#528 subject-local layered-tissue term",
-    ),
-    Expectation(
-        "TC-19 epithelial apical-to-basal", "ome-zarr",
-        ("synthetic/ome-zarr/TC-19_epithelial_apical_basal.ome.zarr",
-         "ome-zarr/TC-19_epithelial_apical_basal.zip"),
-        expect_valid=True,
-        expected_orientations={"z": "apical-to-basal"},
-        description="PR#528 epithelial polarity term",
-    ),
-    Expectation(
-        "TC-20 cardiac apex-to-base", "ome-zarr",
-        ("synthetic/ome-zarr/TC-20_cardiac_apex_base.ome.zarr",
-         "ome-zarr/TC-20_cardiac_apex_base.zip"),
-        expect_valid=True,
-        expected_orientations={"z": "apex-to-base"},
-        description="PR#528 cardiac term",
+        expected_orientations={"z": "superior-to-inferior", "y": "anterior-to-posterior",
+                               "x": "right-to-left"},
+        description="Exact flip of TC-49; adds anterior-to-posterior + superior-to-inferior",
     ),
     Expectation(
         "TC-C invalid vocabulary", "ome-zarr",
-        ("ome-zarr/TC-C_invalid_vocabulary.zip",),
+        ("ome-zarr/TC-C_invalid_vocabulary.ome.zarr",),
         expect_valid=False,
         description="'LPS' shorthand is not in the vocabulary; MUST fail",
     ),
     Expectation(
         "TC-D orientation on time axis", "ome-zarr",
-        ("ome-zarr/TC-D_orientation_on_time_axis.zip",),
+        ("ome-zarr/TC-D_orientation_on_time_axis.ome.zarr",),
         expect_valid=False,
         description="orientation on a type:time axis; MUST fail",
     ),
@@ -641,10 +660,35 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         expect_valid=True,
         description="Real 3D Slicer brain MRI, NRRD LPS space (rotated axes)",
     ),
+    # --- MINC + Analyze: derived via nibabel, exactly like NIfTI ---
+    Expectation(
+        "TC-26 ICBM152 T1 (MINC)", "minc",
+        ("minc/mni_icbm152_t1.mnc",),
+        expect_valid=True,
+        description="Real MNI ICBM152 T1 brain (MINC2); nibabel axcodes SAR",
+    ),
+    Expectation(
+        "TC-27 ICBM152 z-flip (MINC)", "minc",
+        ("minc/icbm152_t1_2mm_zflip.mnc",),
+        expect_valid=True,
+        description="Reoriented ICBM152 (exact z-flip); superior-to-inferior on i",
+    ),
+    Expectation(
+        "TC-28 ICBM152 xy-flip (MINC)", "minc",
+        ("minc/icbm152_t1_2mm_xyflip.mnc",),
+        expect_valid=True,
+        description="Reoriented ICBM152 (exact x+y flip); right-to-left + anterior-to-posterior",
+    ),
+    Expectation(
+        "TC-30 avg152T1 (Analyze)", "analyze",
+        ("analyze/avg152T1.hdr",),
+        expect_valid=True,
+        description="Real SPM avg152T1 (Analyze 7.5); nibabel derives LAS (orientation ambiguous)",
+    ),
     # --- Real OME-Zarr converted from real data via ngff-zarr (RFC-4 written) ---
     Expectation(
         "TC-21 mouse quadruped (Allen)", "ome-zarr",
-        ("real/ome-zarr/mouse_allen_quadruped.ome.zarr",),
+        ("ome-zarr/mouse_allen_quadruped.ome.zarr",),
         expect_valid=True,
         expected_orientations={"z": "rostral-to-caudal", "y": "dorsal-to-ventral",
                                "x": "right-to-left"},
@@ -652,7 +696,7 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     ),
     Expectation(
         "TC-22 foot limb (TCIA CMB-MEL)", "ome-zarr",
-        ("real/ome-zarr/foot_cmb_limb.ome.zarr",),
+        ("ome-zarr/foot_cmb_limb.ome.zarr",),
         expect_valid=True,
         expected_orientations={"z": "distal-to-proximal", "y": "dorsal-to-plantar"},
         description="Real foot CT (TCIA, CC BY 4.0); limb vocabulary (proximal-distal verified)",
@@ -673,17 +717,105 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     # --- Real subject-local EM (OpenOrganelle FIB-SEM, CC BY 4.0); depth axis only ---
     Expectation(
         "TC-24 skin superficial-to-deep (Janelia)", "ome-zarr",
-        ("real/ome-zarr/skin_janelia_superficial_deep.ome.zarr",),
+        ("ome-zarr/skin_janelia_superficial_deep.ome.zarr",),
         expect_valid=True,
         expected_orientations={"z": "superficial-to-deep"},
         description="Real mouse skin FIB-SEM (jrc_mus-skin-1, CC BY 4.0); subject-local depth term (assigned)",
     ),
     Expectation(
         "TC-25 heart apex-to-base (Janelia)", "ome-zarr",
-        ("real/ome-zarr/heart_janelia_apex_base.ome.zarr",),
+        ("ome-zarr/heart_janelia_apex_base.ome.zarr",),
         expect_valid=True,
         expected_orientations={"z": "apex-to-base"},
         description="Real mouse heart FIB-SEM (jrc_mus-heart-1, CC BY 4.0); subject-local cardiac term (assigned)",
+    ),
+    Expectation(
+        "TC-44 airway epithelium (apical-to-basal)", "ome-zarr",
+        ("ome-zarr/airway_epithelium.ome.zarr",),
+        expect_valid=True,
+        expected_orientations={"z": "apical-to-basal"},
+        description="Real human airway epithelium FIB-SEM (CC BY 4.0); apical marked by cilia",
+    ),
+    Expectation(
+        "TC-46 whole-body mouse uCT (caudal-to-cranial)", "ome-zarr",
+        ("ome-zarr/mouse_rosenhain_wholebody.ome.zarr",),
+        expect_valid=True,
+        expected_orientations={"z": "caudal-to-cranial", "y": "dorsal-to-ventral"},
+        description="Real whole-body mouse micro-CT (Rosenhain, CC0); skull verified at cranial end",
+    ),
+    # --- Real OME-Zarr flips: reverse-direction terms via exact axis flips ---
+    Expectation(
+        "TC-39 Allen mouse flipped", "ome-zarr",
+        ("ome-zarr/mouse_allen_quadruped_flip.ome.zarr",),
+        expect_valid=True,
+        expected_orientations={"z": "caudal-to-rostral", "y": "ventral-to-dorsal",
+                               "x": "left-to-right"},
+        description="Exact flip of TC-21; caudal-to-rostral + ventral-to-dorsal",
+    ),
+    Expectation(
+        "TC-40 foot CT flipped", "ome-zarr",
+        ("ome-zarr/foot_cmb_limb_flip.ome.zarr",),
+        expect_valid=True,
+        expected_orientations={"z": "proximal-to-distal", "y": "plantar-to-dorsal"},
+        description="Exact flip of TC-22; proximal-to-distal + plantar-to-dorsal",
+    ),
+    Expectation(
+        "TC-41 skin EM flipped", "ome-zarr",
+        ("ome-zarr/skin_janelia_flip.ome.zarr",),
+        expect_valid=True,
+        expected_orientations={"z": "deep-to-superficial"},
+        description="Exact flip of TC-24; deep-to-superficial",
+    ),
+    Expectation(
+        "TC-42 heart EM flipped", "ome-zarr",
+        ("ome-zarr/heart_janelia_flip.ome.zarr",),
+        expect_valid=True,
+        expected_orientations={"z": "base-to-apex"},
+        description="Exact flip of TC-25; base-to-apex",
+    ),
+    Expectation(
+        "TC-45 airway flipped", "ome-zarr",
+        ("ome-zarr/airway_epithelium_flip.ome.zarr",),
+        expect_valid=True,
+        expected_orientations={"z": "basal-to-apical"},
+        description="Exact flip of TC-44; basal-to-apical",
+    ),
+    Expectation(
+        "TC-47 whole-body mouse flipped", "ome-zarr",
+        ("ome-zarr/mouse_rosenhain_flip.ome.zarr",),
+        expect_valid=True,
+        expected_orientations={"z": "cranial-to-caudal", "y": "dorsal-to-ventral"},
+        description="Exact flip of TC-46; cranial-to-caudal",
+    ),
+    # --- Vocabulary completion: hand palmar/dorsal (only pair with no open real data) ---
+    Expectation(
+        "VC-1 hand phantom (dorsal-to-palmar)", "ome-zarr",
+        ("ome-zarr/vocab-quad-limb.ome.zarr",),
+        expect_valid=True,
+        expected_orientations={"z": "cranial-to-caudal", "y": "dorsal-to-palmar",
+                               "x": "proximal-to-distal"},
+        description="Synthetic hand phantom; palmar/dorsal are the only 2 terms with no open real dataset",
+    ),
+    Expectation(
+        "VC-2 hand phantom flipped (palmar-to-dorsal)", "ome-zarr",
+        ("ome-zarr/vocab-quad-limb-flip.ome.zarr",),
+        expect_valid=True,
+        expected_orientations={"z": "caudal-to-cranial", "y": "palmar-to-dorsal",
+                               "x": "distal-to-proximal"},
+        description="Exact flip of VC-1; palmar-to-dorsal",
+    ),
+    # --- Real DICOM (acquired, vs the synthetic HFDR/HFDL pair) ---
+    Expectation(
+        "TC-37 real CT axial (identity IOP)", "dicom",
+        ("dicom/real_ct_small.dcm",),
+        expect_valid=True,
+        description="Real acquired DICOM; axial identity IOP; PatientPosition ignored",
+    ),
+    Expectation(
+        "TC-48 real CT oblique (~22deg IOP)", "dicom",
+        ("dicom/real_ct_oblique.dcm",),
+        expect_valid=True,
+        description="Real DICOM with non-identity oblique IOP; MUST warn not-roughly-aligned (R8)",
     ),
 )
 
@@ -742,6 +874,10 @@ def run(data_dir: str) -> list[DatasetResult]:
             r = analyze_dicom(path, exp.name)
         elif exp.kind == "nrrd":
             r = analyze_nrrd(path, exp.name)
+        elif exp.kind == "minc":
+            r = analyze_minc(path, exp.name)
+        elif exp.kind == "analyze":
+            r = analyze_analyze(path, exp.name)
         else:
             r = DatasetResult(name=exp.name, path=path, kind=exp.kind)
 
@@ -848,7 +984,8 @@ def to_canonical(result: DatasetResult) -> dict:
     }
 
 
-_FORMAT_BY_EXT = {".dcm": "dicom", ".nrrd": "nrrd", ".nhdr": "nrrd", ".nii": "nifti"}
+_FORMAT_BY_EXT = {".dcm": "dicom", ".nrrd": "nrrd", ".nhdr": "nrrd", ".nii": "nifti",
+                  ".mnc": "minc", ".hdr": "analyze", ".img": "analyze"}
 
 
 def detect_format(path: str) -> str:
@@ -874,6 +1011,10 @@ def analyze_input(path: str, fmt: str | None = None) -> DatasetResult:
         return analyze_dicom(path, name)
     if fmt == "nrrd":
         return analyze_nrrd(path, name)
+    if fmt == "minc":
+        return analyze_minc(path, name)
+    if fmt == "analyze":
+        return analyze_analyze(path, name)
     r = DatasetResult(name=name, path=path, kind=fmt)
     r.add(SEV_ERROR, "unknown-format", f"cannot analyze format {fmt!r}")
     return r
@@ -887,7 +1028,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--emit-canonical", metavar="INPUT",
                         help="analyze ONE dataset and print its canonical conformance JSON, then exit "
                              "(this is the CLI the conformance driver calls)")
-    parser.add_argument("--format", choices=["ome-zarr", "nifti", "dicom", "nrrd"],
+    parser.add_argument("--format", choices=["ome-zarr", "nifti", "dicom", "nrrd", "minc", "analyze"],
                         help="override format detection for --emit-canonical")
     args = parser.parse_args(argv)
 

@@ -43,32 +43,15 @@ requirements:
     level: DERIVE
     text: correct RFC-4 derivation from DICOM IOP / NIfTI affine / NRRD space directions
 cases:
-- id: TC-16
-  title: Synthetic LPS baseline
+- id: TC-49
+  title: Real ICBM152 brain, RAS (standard A/P + I/S)
   format: ome-zarr
-  input: ./synthetic/ome-zarr/TC-16_synthetic_LPS.ome.zarr
+  input: ./ome-zarr/brain_icbm_ras.ome.zarr
   requirements:
-  - R2
-  - R3
-  - R4
-  - R7
+  - R9
   expect: valid
-  rationale: 'Baseline: three standard terms written explicitly; establishes the LPS reference.'
-  expected:
-    rfc4_valid: true
-    axes:
-      z: inferior-to-superior
-      y: anterior-to-posterior
-      x: right-to-left
-    violations: []
-- id: TC-17
-  title: Synthetic RAS baseline
-  format: ome-zarr
-  input: ./synthetic/ome-zarr/TC-17_synthetic_RAS.ome.zarr
-  requirements:
-  - R7
-  expect: valid
-  rationale: 'Flip pair of TC-16: x and y invert; proves the lowest->highest coordinate convention.'
+  rationale: real ICBM152 T1 -> OME-Zarr with orientation WRITTEN; the OME-Zarr carrier of the standard
+    posterior-to-anterior + inferior-to-superior terms.
   expected:
     rfc4_valid: true
     axes:
@@ -76,49 +59,27 @@ cases:
       y: posterior-to-anterior
       x: left-to-right
     violations: []
-- id: TC-18
-  title: Skin superficial-to-deep
+- id: TC-50
+  title: Real ICBM152 brain, flipped (A/P + S/I)
   format: ome-zarr
-  input: ./synthetic/ome-zarr/TC-18_skin_superficial_deep.ome.zarr
+  input: ./ome-zarr/brain_icbm_ras_flip.ome.zarr
   requirements:
+  - R7
   - R9
   expect: valid
-  rationale: PR#528 subject-local layered-tissue term (distinct from TC-19/TC-20).
+  rationale: exact flip of TC-49 (same real brain); adds anterior-to-posterior + superior-to-inferior
+    in written OME-Zarr metadata.
   expected:
     rfc4_valid: true
     axes:
-      z: superficial-to-deep
-    violations: []
-- id: TC-19
-  title: Epithelial apical-to-basal
-  format: ome-zarr
-  input: ./synthetic/ome-zarr/TC-19_epithelial_apical_basal.ome.zarr
-  requirements:
-  - R9
-  expect: valid
-  rationale: PR#528 epithelial polarity term (distinct term).
-  expected:
-    rfc4_valid: true
-    axes:
-      z: apical-to-basal
-    violations: []
-- id: TC-20
-  title: Cardiac apex-to-base
-  format: ome-zarr
-  input: ./synthetic/ome-zarr/TC-20_cardiac_apex_base.ome.zarr
-  requirements:
-  - R9
-  expect: valid
-  rationale: PR#528 cardiac term (distinct term).
-  expected:
-    rfc4_valid: true
-    axes:
-      z: apex-to-base
+      z: superior-to-inferior
+      y: anterior-to-posterior
+      x: right-to-left
     violations: []
 - id: TC-C
   title: Invalid vocabulary 'LPS'
   format: ome-zarr
-  input: ./ome-zarr/TC-C_invalid_vocabulary.zip
+  input: ./ome-zarr/TC-C_invalid_vocabulary.ome.zarr
   requirements:
   - R4
   expect: invalid
@@ -130,7 +91,7 @@ cases:
 - id: TC-D
   title: Orientation on time axis
   format: ome-zarr
-  input: ./ome-zarr/TC-D_orientation_on_time_axis.zip
+  input: ./ome-zarr/TC-D_orientation_on_time_axis.ome.zarr
   requirements:
   - R1
   expect: invalid
@@ -310,10 +271,64 @@ cases:
       '0': anterior-to-posterior
       '1': superior-to-inferior
       '2': left-to-right
+- id: TC-26
+  title: MINC ICBM152 T1
+  format: minc
+  input: ./minc/mni_icbm152_t1.mnc
+  requirements:
+  - R10
+  expect: valid
+  rationale: real MNI ICBM152 brain (MINC2); nibabel derives i/j/k from the direction cosines.
+  expected:
+    axes:
+      i: inferior-to-superior
+      j: posterior-to-anterior
+      k: left-to-right
+- id: TC-27
+  title: MINC ICBM152 z-flip
+  format: minc
+  input: ./minc/icbm152_t1_2mm_zflip.mnc
+  requirements:
+  - R7
+  - R10
+  expect: valid
+  rationale: exact z-flip of TC-26; isolates superior-to-inferior on i.
+  expected:
+    axes:
+      i: superior-to-inferior
+      j: posterior-to-anterior
+      k: left-to-right
+- id: TC-28
+  title: MINC ICBM152 xy-flip
+  format: minc
+  input: ./minc/icbm152_t1_2mm_xyflip.mnc
+  requirements:
+  - R7
+  - R10
+  expect: valid
+  rationale: exact x+y flip of TC-26; adds right-to-left + anterior-to-posterior.
+  expected:
+    axes:
+      i: inferior-to-superior
+      j: anterior-to-posterior
+      k: right-to-left
+- id: TC-30
+  title: Analyze avg152T1
+  format: analyze
+  input: ./analyze/avg152T1.hdr
+  requirements:
+  - R10
+  expect: valid
+  rationale: real SPM avg152T1 (Analyze 7.5); nibabel derives LAS from pixdim signs (ambiguous format).
+  expected:
+    axes:
+      i: right-to-left
+      j: posterior-to-anterior
+      k: inferior-to-superior
 - id: TC-21
   title: Real Allen mouse (quadruped)
   format: ome-zarr
-  input: ./real/ome-zarr/mouse_allen_quadruped.ome.zarr
+  input: ./ome-zarr/mouse_allen_quadruped.ome.zarr
   requirements:
   - R9
   expect: valid
@@ -328,7 +343,7 @@ cases:
 - id: TC-22
   title: Real foot CT (limb)
   format: ome-zarr
-  input: ./real/ome-zarr/foot_cmb_limb.ome.zarr
+  input: ./ome-zarr/foot_cmb_limb.ome.zarr
   requirements:
   - R9
   expect: valid
@@ -342,7 +357,7 @@ cases:
 - id: TC-24
   title: Real skin superficial-to-deep (Janelia)
   format: ome-zarr
-  input: ./real/ome-zarr/skin_janelia_superficial_deep.ome.zarr
+  input: ./ome-zarr/skin_janelia_superficial_deep.ome.zarr
   requirements:
   - R9
   expect: valid
@@ -355,7 +370,7 @@ cases:
 - id: TC-25
   title: Real heart apex-to-base (Janelia)
   format: ome-zarr
-  input: ./real/ome-zarr/heart_janelia_apex_base.ome.zarr
+  input: ./ome-zarr/heart_janelia_apex_base.ome.zarr
   requirements:
   - R9
   expect: valid
@@ -365,6 +380,153 @@ cases:
     rfc4_valid: true
     axes:
       z: apex-to-base
+    violations: []
+- id: TC-44
+  title: Real airway epithelium (apical-to-basal)
+  format: ome-zarr
+  input: ./ome-zarr/airway_epithelium.ome.zarr
+  requirements:
+  - R9
+  expect: valid
+  rationale: real polarized epithelium FIB-SEM; apical surface marked by cilia (definitive). Real apical-to-basal.
+  expected:
+    rfc4_valid: true
+    axes:
+      z: apical-to-basal
+    violations: []
+- id: TC-46
+  title: Real whole-body mouse uCT (caudal-to-cranial)
+  format: ome-zarr
+  input: ./ome-zarr/mouse_rosenhain_wholebody.ome.zarr
+  requirements:
+  - R9
+  expect: valid
+  rationale: real whole-body mouse micro-CT (Rosenhain, CC0); skull verified at the cranial end.
+  expected:
+    rfc4_valid: true
+    axes:
+      z: caudal-to-cranial
+      y: dorsal-to-ventral
+    violations: []
+- id: TC-39
+  title: Allen mouse, flipped (reverse quadruped)
+  format: ome-zarr
+  input: ./ome-zarr/mouse_allen_quadruped_flip.ome.zarr
+  requirements:
+  - R7
+  - R9
+  expect: valid
+  rationale: exact flip of TC-21; covers caudal-to-rostral + ventral-to-dorsal on real data.
+  expected:
+    rfc4_valid: true
+    axes:
+      z: caudal-to-rostral
+      y: ventral-to-dorsal
+      x: left-to-right
+    violations: []
+- id: TC-40
+  title: Foot CT, flipped (reverse limb)
+  format: ome-zarr
+  input: ./ome-zarr/foot_cmb_limb_flip.ome.zarr
+  requirements:
+  - R7
+  - R9
+  expect: valid
+  rationale: exact flip of TC-22; covers proximal-to-distal + plantar-to-dorsal.
+  expected:
+    rfc4_valid: true
+    axes:
+      z: proximal-to-distal
+      y: plantar-to-dorsal
+    violations: []
+- id: TC-41
+  title: Skin EM, flipped (deep-to-superficial)
+  format: ome-zarr
+  input: ./ome-zarr/skin_janelia_flip.ome.zarr
+  requirements:
+  - R7
+  - R9
+  expect: valid
+  rationale: exact flip of TC-24; covers deep-to-superficial.
+  expected:
+    rfc4_valid: true
+    axes:
+      z: deep-to-superficial
+    violations: []
+- id: TC-42
+  title: Heart EM, flipped (base-to-apex)
+  format: ome-zarr
+  input: ./ome-zarr/heart_janelia_flip.ome.zarr
+  requirements:
+  - R7
+  - R9
+  expect: valid
+  rationale: exact flip of TC-25; covers base-to-apex.
+  expected:
+    rfc4_valid: true
+    axes:
+      z: base-to-apex
+    violations: []
+- id: TC-45
+  title: Airway epithelium, flipped (basal-to-apical)
+  format: ome-zarr
+  input: ./ome-zarr/airway_epithelium_flip.ome.zarr
+  requirements:
+  - R7
+  - R9
+  expect: valid
+  rationale: exact flip of TC-44; covers basal-to-apical on real data.
+  expected:
+    rfc4_valid: true
+    axes:
+      z: basal-to-apical
+    violations: []
+- id: TC-47
+  title: Whole-body mouse, flipped (cranial-to-caudal)
+  format: ome-zarr
+  input: ./ome-zarr/mouse_rosenhain_flip.ome.zarr
+  requirements:
+  - R7
+  - R9
+  expect: valid
+  rationale: exact flip of TC-46; covers cranial-to-caudal on real data.
+  expected:
+    rfc4_valid: true
+    axes:
+      z: cranial-to-caudal
+      y: dorsal-to-ventral
+    violations: []
+- id: VC-1
+  title: Hand phantom (dorsal-to-palmar, synthetic)
+  format: ome-zarr
+  input: ./ome-zarr/vocab-quad-limb.ome.zarr
+  requirements:
+  - R9
+  expect: valid
+  rationale: palmar/dorsal are the only 2 of 24 terms with no defensible open real dataset (verified negative);
+    recognizable synthetic phantom.
+  expected:
+    rfc4_valid: true
+    axes:
+      z: cranial-to-caudal
+      y: dorsal-to-palmar
+      x: proximal-to-distal
+    violations: []
+- id: VC-2
+  title: Hand phantom, flipped (palmar-to-dorsal)
+  format: ome-zarr
+  input: ./ome-zarr/vocab-quad-limb-flip.ome.zarr
+  requirements:
+  - R7
+  - R9
+  expect: valid
+  rationale: exact flip of VC-1; covers caudal-to-cranial + palmar-to-dorsal + distal-to-proximal.
+  expected:
+    rfc4_valid: true
+    axes:
+      z: caudal-to-cranial
+      y: palmar-to-dorsal
+      x: distal-to-proximal
     violations: []
 - id: SC-04
   title: Oblique NIfTI (30deg)
@@ -391,5 +553,34 @@ cases:
       i: right-to-left
       j: posterior-to-anterior
       k: inferior-to-superior
+    warnings:
+    - not-roughly-aligned
+- id: TC-37
+  title: Real CT, axial identity IOP
+  format: dicom
+  input: ./dicom/real_ct_small.dcm
+  requirements:
+  - R10
+  expect: valid
+  rationale: real acquired DICOM (vs synthetic TC-05/06); axial identity IOP; PatientPosition ignored.
+  expected:
+    axes:
+      x: right-to-left
+      y: anterior-to-posterior
+      z: inferior-to-superior
+- id: TC-48
+  title: Real CT, oblique IOP (~22deg)
+  format: dicom
+  input: ./dicom/real_ct_oblique.dcm
+  requirements:
+  - R8
+  - R10
+  expect: valid
+  rationale: real DICOM with non-identity oblique IOP (~22deg gantry tilt); SHOULD warn not-roughly-aligned.
+  expected:
+    axes:
+      x: right-to-left
+      y: anterior-to-posterior
+      z: inferior-to-superior
     warnings:
     - not-roughly-aligned
