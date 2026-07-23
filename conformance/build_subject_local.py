@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Fetch a light (s7) level of two OpenOrganelle FIB-SEM volumes and write them
+"""Fetch a light (s7) level of an OpenOrganelle FIB-SEM volume and write it
 as OME-Zarr with RFC-4 subject-local orientation. Depth axis only is annotated
-(in-plane axes have no anatomical meaning); the depth term is ASSIGNED from
-sample-prep knowledge, not derived -> needs_manual_verification.
+(in-plane axes have no anatomical meaning); the depth term is assigned from
+sample-prep knowledge.
 
   jrc_mus-skin-1  -> z = superficial-to-deep   (CC BY 4.0, Janelia/HHMI)
-  jrc_mus-heart-1 -> z = apex-to-base          (CC BY 4.0, Janelia/HHMI)
+
+The heart apex-to-base case (TC-25/42) is no longer built here: it is a real
+cardiac short-axis cine MRI (Sunnybrook Cardiac Data, CC0), built separately.
 """
 import json
 import os
@@ -68,7 +70,3 @@ if __name__ == "__main__":
     skin, s_scale = fetch("jrc_mus-skin-1")
     write("skin_janelia_superficial_deep.ome.zarr", skin, s_scale,
           {"z": AnatomicalOrientation(value=V.superficial_to_deep)})
-
-    heart, h_scale = fetch("jrc_mus-heart-1")
-    write("heart_janelia_apex_base.ome.zarr", heart, h_scale,
-          {"z": AnatomicalOrientation(value=V.apex_to_base)})

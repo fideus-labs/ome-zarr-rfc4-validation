@@ -80,8 +80,7 @@ matrix (every rule R1–R10 exercised, no redundant case).
   (DICOM IOP, NIfTI affine, NRRD space directions, MINC direction cosines).
 
 Every case is indexed in the data repo's `manifest.csv`: `test_id, format, path,
-category, expect, rfc4_rules, orientation, data, source, license,
-needs_manual_verification, notes`.
+category, expect, rfc4_rules, orientation, data, source, license, notes`.
 
 Orientation is listed per axis in lowest→highest coordinate order; `—` marks an
 axis left unannotated (no applicable RFC-4 term).
@@ -96,8 +95,8 @@ axis left unannotated (no applicable RFC-4 term).
 | TC-40 | `ome-zarr/foot_cmb_limb_flip.ome.zarr` | z proximal-to-distal · y plantar-to-dorsal · x — | real | CC BY 4.0 |
 | TC-24 | `ome-zarr/skin_janelia_superficial_deep.ome.zarr` | z superficial-to-deep · y — · x — | real | CC BY 4.0 |
 | TC-41 | `ome-zarr/skin_janelia_flip.ome.zarr` | z deep-to-superficial · y — · x — | real | CC BY 4.0 |
-| TC-25 | `ome-zarr/heart_janelia_apex_base.ome.zarr` | z apex-to-base · y — · x — | real | CC BY 4.0 |
-| TC-42 | `ome-zarr/heart_janelia_flip.ome.zarr` | z base-to-apex · y — · x — | real | CC BY 4.0 |
+| TC-25 | `ome-zarr/heart_sunnybrook_apex_base.ome.zarr` | z apex-to-base · y — · x — | real | CC0 1.0 |
+| TC-42 | `ome-zarr/heart_sunnybrook_flip.ome.zarr` | z base-to-apex · y — · x — | real | CC0 1.0 |
 | TC-44 | `ome-zarr/airway_epithelium.ome.zarr` | z apical-to-basal · y — · x — | real | CC BY 4.0 |
 | TC-45 | `ome-zarr/airway_epithelium_flip.ome.zarr` | z basal-to-apical · y — · x — | real | CC BY 4.0 |
 | TC-46 | `ome-zarr/mouse_rosenhain_wholebody.ome.zarr` | z caudal-to-cranial · y dorsal-to-ventral · x — | real | CC0 |
@@ -138,10 +137,6 @@ axis left unannotated (no applicable RFC-4 term).
 | TC-32 | `fdf/test.fdf` | — (no patient position; geometric `orientation[]` only) | real | Apache-2.0 |
 | TC-33 | `fdf/synthetic_HFS_supine.fdf` | x left-to-right · y posterior-to-anterior · z inferior-to-superior | synthetic | CC0 |
 | TC-38 | `wsi/CMU-1-Small-Region.svs` | z superficial-to-deep · y — · x — | real | OpenSlide testdata |
-
-Cases whose orientation is assigned rather than read from an unambiguous header
-are flagged `needs_manual_verification = TRUE` in `manifest.csv`
-(TC-22, TC-24, TC-25, TC-31, TC-32, TC-34, TC-36, TC-38, TC-46).
 
 Full per-source licensing and attribution is in the
 [data repo README](https://huggingface.co/fideus-labs/ome-zarr-rfc4-data).

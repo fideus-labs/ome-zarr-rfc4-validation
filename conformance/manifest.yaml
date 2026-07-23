@@ -368,14 +368,14 @@ cases:
       z: superficial-to-deep
     violations: []
 - id: TC-25
-  title: Real heart apex-to-base (Janelia)
+  title: Real heart apex-to-base (cardiac MRI)
   format: ome-zarr
-  input: ./ome-zarr/heart_janelia_apex_base.ome.zarr
+  input: ./ome-zarr/heart_sunnybrook_apex_base.ome.zarr
   requirements:
   - R9
   expect: valid
-  rationale: real mouse heart FIB-SEM (jrc_mus-heart-1, CC BY 4.0); subject-local cardiac term on real
-    data.
+  rationale: real cardiac short-axis cine MRI (Sunnybrook Cardiac Data, CC0); slice axis is
+    apex-to-base, visually verifiable (LV cavity shrinks toward the apex).
   expected:
     rfc4_valid: true
     axes:
@@ -454,9 +454,9 @@ cases:
       z: deep-to-superficial
     violations: []
 - id: TC-42
-  title: Heart EM, flipped (base-to-apex)
+  title: Cardiac MRI, flipped (base-to-apex)
   format: ome-zarr
-  input: ./ome-zarr/heart_janelia_flip.ome.zarr
+  input: ./ome-zarr/heart_sunnybrook_flip.ome.zarr
   requirements:
   - R7
   - R9

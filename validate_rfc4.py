@@ -723,11 +723,11 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         description="Real mouse skin FIB-SEM (jrc_mus-skin-1, CC BY 4.0); subject-local depth term (assigned)",
     ),
     Expectation(
-        "TC-25 heart apex-to-base (Janelia)", "ome-zarr",
-        ("ome-zarr/heart_janelia_apex_base.ome.zarr",),
+        "TC-25 heart apex-to-base (cardiac MRI)", "ome-zarr",
+        ("ome-zarr/heart_sunnybrook_apex_base.ome.zarr",),
         expect_valid=True,
         expected_orientations={"z": "apex-to-base"},
-        description="Real mouse heart FIB-SEM (jrc_mus-heart-1, CC BY 4.0); subject-local cardiac term (assigned)",
+        description="Real cardiac short-axis cine MRI (Sunnybrook, CC0); apex-to-base, visually verifiable",
     ),
     Expectation(
         "TC-44 airway epithelium (apical-to-basal)", "ome-zarr",
@@ -767,8 +767,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         description="Exact flip of TC-24; deep-to-superficial",
     ),
     Expectation(
-        "TC-42 heart EM flipped", "ome-zarr",
-        ("ome-zarr/heart_janelia_flip.ome.zarr",),
+        "TC-42 cardiac MRI flipped", "ome-zarr",
+        ("ome-zarr/heart_sunnybrook_flip.ome.zarr",),
         expect_valid=True,
         expected_orientations={"z": "base-to-apex"},
         description="Exact flip of TC-25; base-to-apex",
