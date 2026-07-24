@@ -1,0 +1,114 @@
+name: Sync sample data to Filebase
+
+# Mirror the Hugging Face RFC-4 sample-data repo to the Filebase S3 bucket
+# (s3://ome-zarr-rfc4, public at https://ome-zarr-rfc4.s3.filebase.io).
+#
+# Hugging Face (fideus-labs/ome-zarr-rfc4-data) is the source of truth. The job
+# is incremental on both ends:
+#   * it first compares the HF HEAD commit (`git ls-remote`, no download) against
+#     a marker object on S3, and exits early when nothing changed -- so a run on
+#     unchanged data downloads and uploads nothing;
+#   * when HF did change, `s5cmd sync` uploads only the changed objects and, with
+#     --delete, removes objects that no longer exist on HF (a true mirror).
+#
+# One-time setup -- add two repository secrets under
+# Settings -> Secrets and variables -> Actions:
+#   FILEBASE_ACCESS_KEY_ID
+#   FILEBASE_SECRET_ACCESS_KEY
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      delete_removed:
+        description: "Delete S3 objects no longer present on Hugging Face (true mirror)"
+        type: boolean
+        default: true
+      force:
+        description: "Sync even if the HF HEAD is unchanged since the last run"
+        type: boolean
+        default: false
+
+concurrency:
+  group: sync-filebase
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  HF_REPO: https://huggingface.co/fideus-labs/ome-zarr-rfc4-data
+  ENDPOINT: https://s3.filebase.io
+  BUCKET: s3://ome-zarr-rfc4
+  MARKER_KEY: .sync-state # stores the last-synced HF commit SHA (excluded from the mirror)
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout validation repo
+        uses: actions/checkout@v4
+
+      - name: Install s5cmd
+        run: |
+          ver=2.2.2
+          curl -fsSL "https://github.com/peak/s5cmd/releases/download/v${ver}/s5cmd_${ver}_Linux-64bit.tar.gz" -o /tmp/s5cmd.tgz
+          sudo tar -xzf /tmp/s5cmd.tgz -C /usr/local/bin s5cmd
+          s5cmd version
+
+      - name: Decide whether Hugging Face changed since last sync
+        id: check
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.FILEBASE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.FILEBASE_SECRET_ACCESS_KEY }}
+        run: |
+          if [ -z "${AWS_ACCESS_KEY_ID}" ] || [ -z "${AWS_SECRET_ACCESS_KEY}" ]; then
+            echo "::error::FILEBASE_ACCESS_KEY_ID / FILEBASE_SECRET_ACCESS_KEY secrets are not set"
+            exit 1
+          fi
+          remote=$(git ls-remote "${HF_REPO}" HEAD | cut -f1)
+          [ -n "${remote}" ] || { echo "::error::could not read HF HEAD"; exit 1; }
+          last=$(s5cmd --endpoint-url="${ENDPOINT}" cat "${BUCKET}/${MARKER_KEY}" 2>/dev/null || echo none)
+          echo "HF HEAD:      ${remote}"
+          echo "last synced:  ${last}"
+          echo "remote=${remote}" >> "${GITHUB_OUTPUT}"
+          if [ "${remote}" = "${last}" ] && [ "${{ inputs.force }}" != "true" ]; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice::Filebase already up to date with HF (${remote}) -- nothing downloaded or synced."
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Fetch sample data from Hugging Face (with LFS)
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git lfs install
+          python fetch_data.py
+          git -C hf-data lfs pull
+
+      - name: Safety check -- hf-data is populated
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          test -f hf-data/manifest.csv \
+            || { echo "::error::hf-data/manifest.csv missing -- aborting before sync"; exit 1; }
+          test -n "$(ls -A hf-data/ome-zarr 2>/dev/null)" \
+            || { echo "::error::hf-data/ome-zarr is empty -- aborting before sync"; exit 1; }
+          echo "hf-data OK: $(ls hf-data/ome-zarr | wc -l) ome-zarr entries, manifest present."
+
+      - name: Sync hf-data -> Filebase S3 and update marker
+        if: steps.check.outputs.changed == 'true'
+        working-directory: hf-data
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.FILEBASE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.FILEBASE_SECRET_ACCESS_KEY }}
+          # Schedule always mirrors; manual runs honor the delete_removed input.
+          DELETE_FLAG: ${{ (github.event_name == 'schedule' || inputs.delete_removed) && '--delete' || '' }}
+        run: |
+          s5cmd --endpoint-url="${ENDPOINT}" sync ${DELETE_FLAG} \
+            --exclude ".git" --exclude ".git*" --exclude "${MARKER_KEY}" \
+            ./ "${BUCKET}/"
+          # Record the synced commit so the next run can skip when unchanged.
+          printf '%s' "${{ steps.check.outputs.remote }}" > /tmp/sync-state
+          s5cmd --endpoint-url="${ENDPOINT}" cp /tmp/sync-state "${BUCKET}/${MARKER_KEY}"
+          echo "::notice::Synced HF ${{ steps.check.outputs.remote }} to ${BUCKET}."
