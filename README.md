@@ -17,8 +17,12 @@ lowest→highest coordinate direction. The field is optional per axis: an axis
 with no anatomical direction is left unannotated.
 
 > **Data lives elsewhere.** The test images are in the Hugging Face repo
-> [`fideus-labs/ome-zarr-rfc4-data`](https://huggingface.co/fideus-labs/ome-zarr-rfc4-data).
-> This repo holds only code. Run `python fetch_data.py` to pull the data into `./hf-data`.
+> [`fideus-labs/ome-zarr-rfc4-data`](https://huggingface.co/fideus-labs/ome-zarr-rfc4-data),
+> also mirrored to a public S3 bucket at
+> [`ome-zarr-rfc4.s3.filebase.io`](https://ome-zarr-rfc4.s3.filebase.io) (Filebase).
+> This repo holds only code. Pull the data into `./hf-data` with
+> `python fetch_data.py` (from Hugging Face) or
+> `python fetch_data.py --source s3` (from the S3 mirror, no credentials).
 
 ## Contents
 
@@ -42,7 +46,8 @@ Uses [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv sync                                                      # env from pyproject.toml + uv.lock
-uv run python fetch_data.py                                  # get data from HF
+uv run python fetch_data.py                                  # get data from Hugging Face
+# or  uv run python fetch_data.py --source s3                #   ... from the Filebase S3 mirror (no credentials)
 uv run python conformance/generate_stress_cases.py           # (optional) regenerate the SC-* fixtures (already shipped)
 uv run python validate_rfc4.py --data-dir hf-data
 uv run python test_validate_rfc4.py --data-dir hf-data
@@ -50,6 +55,25 @@ uv run python conformance/run_conformance.py --data-dir hf-data   # drive a tool
 ```
 
 (Prefer pip? `python -m venv .venv && .venv/bin/pip install -r requirements.txt` still works.)
+
+## Download from the S3 mirror
+
+The sample data is mirrored to a public [Filebase](https://filebase.com) S3
+bucket, readable **without credentials** — handy if you cannot use `git-lfs` or
+want only part of the corpus:
+
+```bash
+# a single file over plain HTTP
+curl -O https://ome-zarr-rfc4.s3.filebase.io/manifest.csv
+
+# the whole corpus via the anonymous S3 API (endpoint https://s3.filebase.io)
+s5cmd --no-sign-request --endpoint-url=https://s3.filebase.io sync 's3://ome-zarr-rfc4/*' ./hf-data/
+# or with the AWS CLI
+aws --no-sign-request --endpoint-url=https://s3.filebase.io s3 sync s3://ome-zarr-rfc4 ./hf-data
+```
+
+The bucket mirrors the Hugging Face repo (the source of truth); it is kept in
+sync by [`.github/workflows/sync-filebase.yml`](.github/workflows/sync-filebase.yml).
 
 `validate_rfc4.py` exits 0 when every case meets its expectation. The proof suite
 additionally injects broken metadata and asserts it is **rejected with the right
