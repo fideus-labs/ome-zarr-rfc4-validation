@@ -2,8 +2,7 @@
 
 Reference validator and **conformance suite** for OME-Zarr
 **RFC-4 (axis anatomical orientation)** —
-[spec](https://ngff.openmicroscopy.org/rfc/4) ·
-[ome/ngff#528](https://github.com/ome/ngff/pull/528).
+[spec](https://ngff.openmicroscopy.org/rfc/4).
 
 RFC-4 adds one optional field to *spatial* axes (`type: "space"`):
 
